@@ -28,30 +28,46 @@ class _GroceryListState extends State<GroceryList> {
   void _loadItems() async {
     final url = Uri.https(
         'flutter-prep-3d2b8-default-rtdb.firebaseio.com', 'shopping-list.json');
-    final response = await http.get(url);
-    if (response.statusCode >= 400) {
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode >= 400) {
+        setState(() {
+          _error = 'Failed to fetch data. Please try again later';
+        });
+      }
+
+      if (response.body == 'null') {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final Map<String, dynamic> listData = json.decode(response.body);
+      final List<GroceryItem> loadedItems = [];
+      for (final item in listData.entries) {
+        final category = categories.entries
+            .firstWhere(
+                (catItem) => catItem.value.title == item.value['category'])
+            .value;
+
+        loadedItems.add(GroceryItem(
+            id: item.key,
+            name: item.value['name'],
+            quantity: item.value['quantity'],
+            category: category));
+      }
       setState(() {
-        _error = 'Failed to fetch data. Please try again later';
+        _groceryItems = loadedItems;
+        _isLoading = false;
+      });
+    } catch (error) {
+      setState(() {
+        _error = 'Something went wrong. Please try again later';
       });
     }
-    final Map<String, dynamic> listData = json.decode(response.body);
-    final List<GroceryItem> loadedItems = [];
-    for (final item in listData.entries) {
-      final category = categories.entries
-          .firstWhere(
-              (catItem) => catItem.value.title == item.value['category'])
-          .value;
-
-      loadedItems.add(GroceryItem(
-          id: item.key,
-          name: item.value['name'],
-          quantity: item.value['quantity'],
-          category: category));
-    }
-    setState(() {
-      _groceryItems = loadedItems;
-      _isLoading = false;
-    });
   }
 
   void _addItem() async {
@@ -69,39 +85,39 @@ class _GroceryListState extends State<GroceryList> {
     });
   }
 
-void _removeItem(GroceryItem item) async {
-  final index = _groceryItems.indexOf(item);
+  void _removeItem(GroceryItem item) async {
+    final index = _groceryItems.indexOf(item);
 
-  final removedItem = _groceryItems[index];
-  
-  setState(() {
-    _groceryItems.removeAt(index); // Remove o item visualmente
-  });
+    final removedItem = _groceryItems[index];
 
-  final url = Uri.https('flutter-prep-3d2b8-default-rtdb.firebaseio.com',
-      'shopping-list/${item.id}.json');
-
-  final response = await http.delete(url);
-
-  if (response.statusCode >= 400) {
-    // Se a requisição falhar, insira o item de volta e mostre um feedback ao usuário
     setState(() {
-      _groceryItems.insert(index, removedItem); // Insere o item de volta
+      _groceryItems.removeAt(index); // Remove o item visualmente
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Failed to delete item. Please try again.'),
-      ),
-    );
-  }
+    final url = Uri.https('flutter-prep-3d2b8-default-rtdb.firebaseio.com',
+        'shopping-list/${item.id}.json');
 
-   ScaffoldMessenger.of(context).showSnackBar(
+    final response = await http.delete(url);
+
+    if (response.statusCode >= 400) {
+      // Se a requisição falhar, insira o item de volta e mostre um feedback ao usuário
+      setState(() {
+        _groceryItems.insert(index, removedItem); // Insere o item de volta
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete item. Please try again.'),
+        ),
+      );
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Item Removed'),
       ),
     );
-}
+  }
 
   @override
   Widget build(BuildContext context) {
